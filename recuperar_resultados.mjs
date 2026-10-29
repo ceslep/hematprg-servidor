@@ -9,28 +9,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url);
-const { parseReport } = require('./lib/parse-report.js');
+import { parseFrame } from './src/protocol.js';
+import { parseReport } from './src/parse-report.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.join(HERE, 'data');
 const RAW = path.join(DATA, 'raw');
 const RESULTS_FILE = path.join(DATA, 'resultados.json');
 
-const IGNORAR = new Set(['20261029_075028']); // tramas de la prueba e2e
-
-function frameInfo(buf) {
-  const stx = buf.indexOf(0x02);
-  const etx = buf.lastIndexOf(0x03);
-  if (stx < 0 || etx < 0 || etx <= stx) return null;
-  const prefix = buf.subarray(stx - 2, stx).toString('latin1');
-  const payload = buf.subarray(stx + 1, etx);
-  const csText = buf.subarray(etx + 1, etx + 3).toString('ascii');
-  const calc = buf.subarray(stx - 2, etx + 1).reduce((a, b) => a + b, 0) & 0xff;
-  return { prefix, payload, checksumOk: calc === parseInt(csText, 16), calc, csText };
-}
+const IGNORAR = new Set(['20261029_075028', '20261029_075230', '20261029_075332']); // tramas de pruebas e2e
 
 function stampToIso(stamp) {
   // stamp = YYYYMMDD_HHMMSS en hora local
@@ -64,7 +52,7 @@ for (const file of files) {
   if (IGNORAR.has(stamp)) continue;
 
   const buf = fs.readFileSync(path.join(RAW, file));
-  const info = frameInfo(buf);
+  const info = parseFrame(buf);
   if (!info) continue;
   if (!info.checksumOk) {
     console.warn(`  ! checksum inválido en ${file}`);

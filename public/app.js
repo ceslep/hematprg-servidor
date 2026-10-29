@@ -1,6 +1,9 @@
 /* Panel de resultados — Hematología (Diatron Aquarius 3) */
 'use strict';
 
+import { esc, fmtFecha, fmtRecibido } from './js/format.js';
+import { drawGraph } from './js/graphs.js';
+
 const $ = (sel) => document.querySelector(sel);
 const el = {
   dot: $('#dot'),
@@ -22,29 +25,6 @@ const state = {
 };
 
 /* ---------------- utilidades ---------------- */
-
-function fmtFecha(ymd, hm) {
-  if (!ymd) return '—';
-  const s = String(ymd);
-  let out = s;
-  if (/^\d{8}$/.test(s)) out = `${s.slice(6, 8)}/${s.slice(4, 6)}/${s.slice(0, 4)}`;
-  if (hm && /^\d{6}$/.test(String(hm))) {
-    const t = String(hm);
-    out += ` ${t.slice(0, 2)}:${t.slice(2, 4)}`;
-  }
-  return out;
-}
-
-function fmtRecibido(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'medium' });
-}
-
-function esc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
 
 function toast(html) {
   const t = document.createElement('div');
@@ -259,68 +239,6 @@ function downloadJson(r) {
   a.download = `resultado_${r.header?.RecNo || 'sin_rec'}_${(r.received || '').slice(0, 10)}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-
-function drawGraph(canvas, g) {
-  const dpr = window.devicePixelRatio || 1;
-  const cssW = canvas.clientWidth || 240;
-  const cssH = canvas.clientHeight || 130;
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, cssW, cssH);
-
-  const pts = Array.isArray(g.points) ? g.points : [];
-  if (!pts.length) return;
-  const max = Math.max(1, ...pts);
-  const pad = { l: 6, r: 6, t: 8, b: 16 };
-  const w = cssW - pad.l - pad.r;
-  const hgt = cssH - pad.t - pad.b;
-
-  // rejilla
-  ctx.strokeStyle = '#e7eef5';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = pad.t + (hgt * i) / 4;
-    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + w, y); ctx.stroke();
-  }
-
-  const step = w / (pts.length - 1 || 1);
-  const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + hgt);
-  grad.addColorStop(0, 'rgba(15,163,177,.32)');
-  grad.addColorStop(1, 'rgba(15,163,177,.02)');
-
-  ctx.beginPath();
-  pts.forEach((v, i) => {
-    const x = pad.l + i * step;
-    const y = pad.t + hgt - (v / max) * hgt;
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  });
-  const linePath = new Path2D();
-  pts.forEach((v, i) => {
-    const x = pad.l + i * step;
-    const y = pad.t + hgt - (v / max) * hgt;
-    i === 0 ? linePath.moveTo(x, y) : linePath.lineTo(x, y);
-  });
-  ctx.save();
-  ctx.lineTo(pad.l + w, pad.t + hgt);
-  ctx.lineTo(pad.l, pad.t + hgt);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
-  ctx.restore();
-
-  ctx.strokeStyle = '#0d6e8c';
-  ctx.lineWidth = 1.6;
-  ctx.stroke(linePath);
-
-  ctx.fillStyle = '#8aa0b2';
-  ctx.font = '10px Segoe UI, sans-serif';
-  ctx.fillText('0', pad.l, cssH - 3);
-  ctx.textAlign = 'right';
-  ctx.fillText(String(g['Scale(fl)'] ?? ''), pad.l + w, cssH - 3);
-  ctx.textAlign = 'left';
 }
 
 /* ---------------- configuración de conexión ---------------- */

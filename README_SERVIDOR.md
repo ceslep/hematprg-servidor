@@ -1,12 +1,31 @@
 # Servidor de resultados — Hematología (Diatron Aquarius 3)
 
-Servidor **Node.js** que escucha permanentemente el analizador por **USB-Serie**,
-decodifica el protocolo propio de Diatron y muestra los resultados en un **panel web**
-con parámetros, alertas e histogramas.
+Servidor **Node.js moderno** (ES Modules, Node ≥ 18.17) que escucha permanentemente el
+analizador por **USB-Serie**, decodifica el protocolo propio de Diatron y muestra los
+resultados en un **panel web** con parámetros, alertas e histogramas.
 
 ```
-Equipo (Aquarius 3) ──USB-Serie 115200 8N1──► COM3 ──► Node.js ──► Panel web (SSE)
+Equipo (Aquarius 3) ──USB-Serie 115200 8N1──► COM3 ──► Node.js (ESM) ──► Panel web (SSE)
 ```
+
+Arquitectura modular:
+
+| Módulo | Responsabilidad |
+|---|---|
+| `server.js` | Punto de entrada: cablea dependencias, arranca HTTP y serie |
+| `src/config.js` | Configuración, validación, persistencia y listado de puertos |
+| `src/protocol.js` | Constantes y `FrameParser` incremental del protocolo Diatron |
+| `src/parse-report.js` | Informe de texto → objeto estructurado |
+| `src/serial-manager.js` | Apertura, reconexión automática, decodificación y guardado |
+| `src/store.js` | Almacén JSON de resultados |
+| `src/status.js` | Estado en memoria (serie, equipo, configuración) |
+| `src/bus.js` | Bus de eventos (`EventEmitter`) para SSE |
+| `src/app.js` | Servidor HTTP, API REST, SSE y estáticos |
+| `src/logger.js` / `src/util.js` | Log con rotación y utilidades |
+
+El frontend también usa módulos ES: `public/app.js` (`type="module"`) importa
+`public/js/format.js` y `public/js/graphs.js`.
+
 
 ## Cómo arrancar el servidor
 
@@ -46,7 +65,7 @@ Finalizar tarea, o:
 Get-NetTCPConnection -LocalPort 3000 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
 ```
 
-> Requiere Node.js 18+ (instalado: v24). La dependencia `serialport` ya está instalada
+> Requiere Node.js 18.17+ (instalado: v24). La dependencia `serialport` ya está instalada
 > en `node_modules/`. El puerto **COM3 debe estar libre** (cerrar otros programas que lo usen);
 > si no está disponible, el servidor reintenta solo cada 3 s y el puerto se puede cambiar
 > desde **⚙ Configuración**.
@@ -139,26 +158,38 @@ Ejemplo: `$env:PORT='3001'; npm start`
 
 ```
 servidor/
-├─ server.js            # servidor HTTP + SSE + lector serie + configuración
-├─ lib/parse-report.js  # parser del informe (compartido)
-├─ Iniciar servidor.bat # doble clic para arrancar
-├─ Detener servidor.bat # doble clic para detener
-├─ Instalar autoinicio.ps1  # inicio automático con Windows
-├─ start.ps1            # arranque con reinicio automático
-├─ test_e2e.mjs         # prueba SSE/parser (borra solo sus propios datos)
-├─ recuperar_resultados.mjs  # reconstruye resultados desde data/raw
-├─ package.json
+├─ server.js             # punto de entrada (ESM): cablea y arranca todo
+├─ src/
+│  ├─ app.js             # HTTP + API + SSE + estáticos
+│  ├─ bus.js             # eventos internos (EventEmitter)
+│  ├─ config.js          # configuración + puertos + persistencia
+│  ├─ logger.js          # log con rotación
+│  ├─ parse-report.js    # parser del informe
+│  ├─ protocol.js        # FrameParser del protocolo Diatron
+│  ├─ serial-manager.js  # apertura/reconexión/decodificación serie
+│  ├─ status.js          # estado en memoria
+│  ├─ store.js           # almacén JSON
+│  └─ util.js            # utilidades (stamp, hex…)
 ├─ public/
-│  ├─ index.html
+│  ├─ index.html         # panel (carga app.js como módulo ES)
 │  ├─ styles.css
-│  └─ app.js
-├─ data/
-│  ├─ config.json       # configuración guardada desde el panel
-│  ├─ resultados.json   # almacén de resultados
-│  ├─ servidor.pid      # PID del proceso en ejecución (para poder detenerlo)
-│  ├─ servidor.log      # log del servidor (rota a 2 MB)
-│  └─ raw/              # tramas crudas .bin/.hex
-└─ node_modules/        # serialport
+│  ├─ app.js             # lógica del panel (type="module")
+│  └─ js/
+│     ├─ format.js       # formato y escape
+│     └─ graphs.js       # histogramas en canvas
+├─ Iniciar servidor.bat  # doble clic para arrancar
+├─ Detener servidor.bat  # doble clic para detener
+├─ Instalar autoinicio.ps1  # inicio automático con Windows
+├─ start.ps1             # arranque con reinicio automático
+├─ test_e2e.mjs          # prueba SSE/parser (borra solo sus propios datos)
+├─ recuperar_resultados.mjs  # reconstruye resultados desde data/raw
+├─ package.json          # "type": "module", Node >= 18.17
+└─ data/
+   ├─ config.json        # configuración guardada desde el panel
+   ├─ resultados.json    # almacén de resultados
+   ├─ servidor.pid       # PID del proceso en ejecución
+   ├─ servidor.log       # log (rota a 2 MB)
+   └─ raw/               # tramas crudas .bin/.hex
 ```
 
 ## Probar sin el equipo
@@ -203,3 +234,4 @@ $sc.Save()
 El panel escucha solo en `127.0.0.1` (no accesible desde la red) porque maneja datos
 clínicos. Si algún día se necesita acceso desde otro equipo de la red, cambiar `HOST`
 y añadir autenticación/HTTPS antes de exponerlo.
+
