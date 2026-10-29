@@ -1,0 +1,14 @@
+{
+  "name": "hematprg-servidor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor local que escucha el analizador Diatron Aquarius 3 por USB-Serie y visualiza los resultados",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js --port 3000"
+  },
+  "dependencies": {
+    "serialport": "^13.0.0"
+  }
+}

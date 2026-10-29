@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hematología · Resultados en vivo</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩸</text></svg>">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">🩸</div>
+      <div>
+        <h1>Hematología · Resultados</h1>
+        <small>Recepción automática por USB-Serie</small>
+      </div>
+    </div>
+
+    <span class="pill" title="Estado de la comunicación serial">
+      <span id="dot" class="dot"></span>
+      <span id="statusText">Iniciando…</span>
+    </span>
+
+    <span class="pill" title="Resultados almacenados">
+      <span>📋</span><span id="count">0</span> resultados
+    </span>
+
+    <div class="spacer"></div>
+    <button id="btnConfig" class="btn-settings" title="Configuración de la conexión">⚙ Configuración</button>
+    <div class="device-chip" id="deviceChip"><b>Equipo</b><br>esperando identificación…</div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel sidebar">
+      <div class="sidebar-head">
+        <h2>Resultados recibidos</h2>
+        <input id="search" class="search" type="search" placeholder="Buscar por paciente, muestra, ID…" autocomplete="off">
+      </div>
+      <div id="list" class="list"></div>
+    </aside>
+
+    <section id="detail" class="panel detail">
+      <div class="empty-state">
+        <div>
+          <div class="big">🩸</div>
+          <h2>Esperando resultados</h2>
+          <p>El servidor está escuchando el puerto <b id="emptyPort">COM3</b> a <b id="emptyBaud">115200</b> baudios
+             (<span id="emptyFrame">8N1</span>). Cuando el analizador envíe un resultado, aparecerá aquí automáticamente.
+             Si necesita cambiar el puerto u otra opción, use <b>⚙ Configuración</b>.</p>
+          <p style="margin-top:10px;font-size:12.5px">También puede seleccionar un resultado de la lista para ver el detalle,
+             parámetros, alertas e histogramas.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toasts" class="toast-wrap"></div>
+
+  <!-- Modal de configuración de la conexión -->
+  <div id="modalConfig" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cfgTitle">
+      <header class="modal-head">
+        <h2 id="cfgTitle">⚙ Configuración de conexión</h2>
+        <button type="button" class="modal-x" id="btnCerrarConfig" aria-label="Cerrar">×</button>
+      </header>
+
+      <form id="formConfig" class="modal-body" autocomplete="off">
+        <div class="cfg-section">
+          <div class="cfg-section-title">Comunicación serial (USB-Serie)</div>
+          <div class="cfg-grid">
+            <label class="field">
+              <span>Puerto</span>
+              <div class="port-row">
+                <input id="cfgPort" name="serialPath" list="listaPuertos" placeholder="COM3" required>
+                <button type="button" class="btn small" id="btnPuertos" title="Actualizar puertos detectados">🔄</button>
+              </div>
+              <datalist id="listaPuertos"></datalist>
+              <small id="cfgPortsInfo" class="hint">Buscando puertos…</small>
+            </label>
+
+            <label class="field">
+              <span>Baudios</span>
+              <select id="cfgBaud" name="baudRate"></select>
+            </label>
+
+            <label class="field">
+              <span>Bits de datos</span>
+              <select id="cfgDataBits" name="dataBits">
+                <option value="8">8</option>
+                <option value="7">7</option>
+                <option value="6">6</option>
+                <option value="5">5</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Paridad</span>
+              <select id="cfgParity" name="parity">
+                <option value="none">Sin paridad (N)</option>
+                <option value="even">Par (E)</option>
+                <option value="odd">Impar (O)</option>
+                <option value="mark">Mark (M)</option>
+                <option value="space">Space (S)</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Bits de parada</span>
+              <select id="cfgStopBits" name="stopBits">
+                <option value="1">1</option>
+                <option value="1.5">1.5</option>
+                <option value="2">2</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Reintento (ms)</span>
+              <input type="number" id="cfgReconnect" name="reconnectMs" min="200" max="300000" step="100">
+            </label>
+
+            <label class="field checkbox">
+              <input type="checkbox" id="cfgAck" name="ackOnEnq">
+              <span>Responder ACK al ENQ del equipo</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="cfg-section">
+          <div class="cfg-section-title">Servidor web</div>
+          <div class="cfg-grid">
+            <label class="field">
+              <span>Host</span>
+              <input id="cfgHost" name="host" placeholder="127.0.0.1">
+            </label>
+            <label class="field">
+              <span>Puerto HTTP</span>
+              <input type="number" id="cfgHttpPort" name="httpPort" min="1" max="65535">
+            </label>
+          </div>
+          <p class="hint">Los cambios de host/puerto HTTP se aplican al reiniciar el servidor. Los cambios del puerto serie se aplican al instante.</p>
+        </div>
+
+        <div id="cfgMsg" class="cfg-msg" hidden></div>
+
+        <footer class="modal-foot">
+          <span class="cfg-current" id="cfgCurrent"></span>
+          <span class="spacer"></span>
+          <button type="button" class="btn" id="btnResetCfg">Restaurar</button>
+          <button type="button" class="btn" id="btnCancelCfg">Cancelar</button>
+          <button type="submit" class="btn primary" id="btnSaveCfg">Aplicar y reconectar</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
